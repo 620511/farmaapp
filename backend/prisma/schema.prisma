@@ -1,0 +1,193 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  ADMIN
+  PHARMACY
+  CUSTOMER
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PREPARING
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum PrescriptionStatus {
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id            String         @id @default(uuid())
+  name          String
+  email         String         @unique
+  passwordHash  String
+  phone         String?
+  role          Role           @default(CUSTOMER)
+  createdAt     DateTime       @default(now())
+  pharmacy      Pharmacy?
+  orders        Order[]
+  cartItems     CartItem[]
+  favorites     Favorite[]
+  addresses     Address[]
+  prescriptions Prescription[]
+}
+
+model Pharmacy {
+  id          String    @id @default(uuid())
+  name        String
+  description String?
+  logoUrl     String?
+  city        String?
+  latitude    Float?
+  longitude   Float?
+  isActive    Boolean   @default(true)
+  ownerId     String    @unique
+  owner       User      @relation(fields: [ownerId], references: [id])
+  products    Product[]
+  orders      Order[]
+  createdAt   DateTime  @default(now())
+}
+
+model Category {
+  id       String    @id @default(uuid())
+  name     String    @unique
+  icon     String?
+  products Product[]
+}
+
+model Product {
+  id            String      @id @default(uuid())
+  name          String
+  description   String?
+  imageUrl      String?
+  price         Float
+  originalPrice Float?
+  stock         Int         @default(100)
+  requiresRx    Boolean     @default(false)
+  categoryId    String
+  category      Category    @relation(fields: [categoryId], references: [id])
+  pharmacyId    String
+  pharmacy      Pharmacy    @relation(fields: [pharmacyId], references: [id])
+  isActive      Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  cartItems     CartItem[]
+  orderItems    OrderItem[]
+  favorites     Favorite[]
+}
+
+model CartItem {
+  id        String  @id @default(uuid())
+  userId    String
+  user      User    @relation(fields: [userId], references: [id])
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int     @default(1)
+
+  @@unique([userId, productId])
+}
+
+model Favorite {
+  id        String  @id @default(uuid())
+  userId    String
+  user      User    @relation(fields: [userId], references: [id])
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  @@unique([userId, productId])
+}
+
+model Address {
+  id        String  @id @default(uuid())
+  userId    String
+  user      User    @relation(fields: [userId], references: [id])
+  label     String
+  street    String
+  number    String
+  district  String?
+  city      String
+  state     String
+  zip       String
+  latitude  Float?
+  longitude Float?
+  isDefault Boolean @default(false)
+}
+
+model Prescription {
+  id             String             @id @default(uuid())
+  userId         String
+  user           User               @relation(fields: [userId], references: [id])
+  orderId        String?
+  imageBase64    String             @db.Text
+  aiSummary      String?
+  aiMedications  String?
+  aiOrientation  String?
+  aiWarnings     String?
+  aiConfidence   String?
+  status         PrescriptionStatus @default(PENDING_REVIEW)
+  pharmacistNote String?
+  reviewedById   String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+}
+
+model Order {
+  id                 String        @id @default(uuid())
+  userId             String
+  user               User          @relation(fields: [userId], references: [id])
+  pharmacyId         String
+  pharmacy           Pharmacy      @relation(fields: [pharmacyId], references: [id])
+  items              OrderItem[]
+  status             OrderStatus   @default(PENDING)
+  paymentStatus      PaymentStatus @default(PENDING)
+  paymentMethod      String?
+  mpPreferenceId     String?
+  mpPaymentId        String?
+  subtotal           Float
+  deliveryFee        Float         @default(0)
+  distanceKm         Float?
+  platformFeePercent Float         @default(0)
+  platformFeeAmount  Float         @default(0)
+  pharmacyPayout     Float         @default(0)
+  total              Float
+  deliveryStreet     String?
+  deliveryCity       String?
+  deliveryLat        Float?
+  deliveryLng        Float?
+  createdAt          DateTime      @default(now())
+}
+
+model Settings {
+  id                 String   @id @default("singleton")
+  platformFeePercent Float    @default(5)
+  updatedAt          DateTime @updatedAt
+}
+
+model OrderItem {
+  id        String  @id @default(uuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id])
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int
+  price     Float
+}
